@@ -65,27 +65,27 @@ class AnndataProcessor:
         """
         Check if the paths exist, if not, create them
         """
-        figshare_download("https://figshare.com/ndownloader/files/42706558",
-                                self.args.spec_chrom_csv_path)
-        figshare_download("https://figshare.com/ndownloader/files/42706555",
-                                self.args.offset_pkl_path)
-        if not os.path.exists(self.args.protein_embeddings_dir):
-            figshare_download("https://figshare.com/ndownloader/files/42715213",
-                'model_files/protein_embeddings.tar.gz')
-        figshare_download("https://figshare.com/ndownloader/files/42706585",
-                                self.args.token_file)
+        # figshare_download("https://figshare.com/ndownloader/files/42706558",
+        #                         self.args.spec_chrom_csv_path)
+        # figshare_download("https://figshare.com/ndownloader/files/42706555",
+        #                         self.args.offset_pkl_path)
+        # if not os.path.exists(self.args.protein_embeddings_dir):
+        #     figshare_download("https://figshare.com/ndownloader/files/42715213",
+        #         'model_files/protein_embeddings.tar.gz')
+        # figshare_download("https://figshare.com/ndownloader/files/42706585",
+        #                         self.args.token_file)
         if self.args.adata_path is None:
             print("Using sample AnnData: 10k pbmcs dataset")
             self.args.adata_path = "./data/10k_pbmcs_proc.h5ad"
             figshare_download(
                 "https://figshare.com/ndownloader/files/42706966",
                 self.args.adata_path)
-        if self.args.model_loc is None:
-            print("Using sample 4 layer model")
-            self.args.model_loc = "./model_files/4layer_model.torch"
-            figshare_download(
-                "https://figshare.com/ndownloader/files/42706576",
-                self.args.model_loc)
+        # if self.args.model_loc is None:
+        #     print("Using sample 4 layer model")
+        #     self.args.model_loc = "./model_files/4layer_model.torch"
+        #     figshare_download(
+        #         "https://figshare.com/ndownloader/files/42706576",
+        #         self.args.model_loc)
 
 
     def preprocess_anndata(self):
@@ -190,26 +190,55 @@ def run_eval(adata, name, pe_idx_path, chroms_path, starts_path, shapes_dict,
     nlayers = args.nlayers  # number of nn.TransformerEncoderLayer in nn.TransformerEncoder
     nhead = 20  # number of heads in nn.MultiheadAttention
     dropout = 0.05  # dropout probability
-    model = TransformerModel(token_dim=token_dim, d_model=emsize, nhead=nhead,
-                             d_hid=d_hid,
-                             nlayers=nlayers, dropout=dropout,
-                             output_dim=args.output_dim)
-    if args.model_loc is None:
-        raise ValueError("Must provide a model location")
-    # intialize as empty
-    empty_pe = torch.zeros(145469, 5120)
-    empty_pe.requires_grad = False
-    model.pe_embedding = nn.Embedding.from_pretrained(empty_pe)
-    model.load_state_dict(torch.load(args.model_loc, map_location="cpu"),
-                          strict=True)
-    # Load in the real token embeddings
-    all_pe = get_ESM2_embeddings(args)
-    # This will make sure that you don't overwrite the tokens in case you're embedding species from the training data
-    # We avoid doing that just in case the random seeds are different across different versions. 
-    if all_pe.shape[0] != 145469: 
-        all_pe.requires_grad = False
+
+    
+    # load model weights using Hugging Face
+    if  "uce-100m" in args.model_loc or "uce-650m" in args.model_loc:
+
+        model = TransformerModel._from_pretrained(args.model_loc, 
+                                                token_dim=args.token_dim, d_model=emsize, nhead=nhead, 
+                                                d_hid=d_hid, nlayers=nlayers, dropout=dropout, 
+                                                output_dim=args.output_dim)
+        
+        # intialize as empty
+        empty_pe = torch.zeros(145469, 5120)
+        empty_pe.requires_grad = False
+        model.pe_embedding = nn.Embedding.from_pretrained(empty_pe)
+
+        # Load in the real token embeddings
+        all_pe = get_ESM2_embeddings(args)
+        # # This will make sure that you don't overwrite the tokens in case you're embedding species from the training data
+        # # We avoid doing that just in case the random seeds are different across different versions. 
+        # if all_pe.shape[0] != 145469: 
+        #     all_pe.requires_grad = False
         model.pe_embedding = nn.Embedding.from_pretrained(all_pe)
-    print(f"Loaded model:\n{args.model_loc}")
+        print(f"Loaded model:\n{args.model_loc}")
+
+    elif args.model_loc is None:
+        raise ValueError("Must provide a model location")
+    
+    else:
+        model = TransformerModel(token_dim=token_dim, d_model=emsize, nhead=nhead,
+                            d_hid=d_hid,
+                            nlayers=nlayers, dropout=dropout,
+                            output_dim=args.output_dim)
+        
+        # intialize as empty
+        empty_pe = torch.zeros(145469, 5120)
+        empty_pe.requires_grad = False
+        model.pe_embedding = nn.Embedding.from_pretrained(empty_pe)
+        model.load_state_dict(torch.load(args.model_loc, map_location="cpu"),
+                            strict=True)
+        
+        # Load in the real token embeddings
+        all_pe = get_ESM2_embeddings(args)
+        # This will make sure that you don't overwrite the tokens in case you're embedding species from the training data
+        # We avoid doing that just in case the random seeds are different across different versions. 
+        if all_pe.shape[0] != 145469: 
+            all_pe.requires_grad = False
+            model.pe_embedding = nn.Embedding.from_pretrained(all_pe)
+        print(f"Loaded model:\n{args.model_loc}")
+
     model = model.eval()
     model = accelerator.prepare(model)
     batch_size = args.batch_size

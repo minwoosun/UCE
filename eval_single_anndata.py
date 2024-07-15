@@ -77,11 +77,57 @@ Returns:
 import argparse
 from evaluate import AnndataProcessor
 from accelerate import Accelerator
+from huggingface_hub import hf_hub_download
+
+
+def download_files():
+    path_species_chrom = hf_hub_download(repo_id="minwoosun/uce-misc", filename="model_files/species_chrom.csv")
+    path_token = hf_hub_download(repo_id="minwoosun/uce-misc", filename="model_files/all_tokens.torch")
+    path_offset = hf_hub_download(repo_id="minwoosun/uce-misc", filename="model_files/species_offsets.pkl")
+    
+    # download all protein emb files into model_files/protein_embeddings/
+    file_paths = ['Danio_rerio.GRCz11.gene_symbol_to_embedding_ESM2.pt',
+                 'Homo_sapiens.GRCh38.gene_symbol_to_embedding_ESM2.pt',
+                 'Macaca_fascicularis.Macaca_fascicularis_6.0.gene_symbol_to_embedding_ESM2.pt',
+                  'Macaca_mulatta.Mmul_10.gene_symbol_to_embedding_ESM2.pt',
+                  'Microcebus_murinus.Mmur_3.0.gene_symbol_to_embedding_ESM2.pt',
+                  'Mus_musculus.GRCm39.gene_symbol_to_embedding_ESM2.pt',
+                  'Sus_scrofa.Sscrofa11.1.gene_symbol_to_embedding_ESM2.pt',
+                  'Xenopus_tropicalis.Xenopus_tropicalis_v9.1.gene_symbol_to_embedding_ESM2.pt'
+                  ]
+    
+    for path in file_paths:
+        hf_hub_download(repo_id="minwoosun/uce-misc", 
+                        filename=f"model_files/protein_embeddings/{path}", 
+                        local_dir=".")
+
+    paths = {'path_species_chrom' : path_species_chrom,
+             'path_token' : path_token,
+             'path_offset' : path_offset,
+             'path_protein_emb' : 'model_files/protein_embeddings/'
+            }
+    
+    print("Download Complete!")
+    return paths
+
 
 def main(args, accelerator):
+
+    # download necessary files (no model weights)
+    paths = download_files()
+
+    # update args
+    args.spec_chrom_csv_path = paths['path_species_chrom']
+    args.token_file = paths['path_token']
+    args.protein_embeddings_dir = paths['path_protein_emb']
+    args.offset_pkl_path = paths['path_offset']
+
+    # preprocess
     processor = AnndataProcessor(args, accelerator)
     processor.preprocess_anndata()
     processor.generate_idxs()
+
+    # run model
     processor.run_evaluation()
 
 

@@ -14,6 +14,11 @@ sys.path.append('../')
 from typing import Any
 import torch
 
+import json
+from huggingface_hub import PyTorchModelHubMixin, hf_hub_download
+from pathlib import Path
+from typing import Optional, Dict, Union 
+
 
 def full_block(in_features, out_features, p_drop=0.1):
     return nn.Sequential(
@@ -47,7 +52,7 @@ class PositionalEncoding(nn.Module):
         return self.dropout(x)
 
 
-class TransformerModel(nn.Module):
+class TransformerModel(nn.Module, PyTorchModelHubMixin):
 
     def __init__(self, token_dim: int, d_model: int, nhead: int, d_hid: int,
                  nlayers: int, output_dim:int, dropout: float = 0.05):
@@ -113,3 +118,68 @@ class TransformerModel(nn.Module):
             (torch.hstack((cell_embedding, gene_embeddings)))
         return dec
 
+
+    def _save_pretrained(self, save_directory: Path) -> None:
+        torch.save(self.state_dict(), save_directory / "pytorch_model.bin")
+        config = {
+            "token_dim": self.token_dim,
+            "d_model": self.d_model,
+            "nhead": self.nhead,
+            "d_hid": self.d_hid,
+            "nlayers": self.nlayers,
+            "output_dim": self.output_dim,
+            "dropout": self.dropout,
+        }
+        with open(save_directory / "config.json", "w") as f:
+            json.dump(config, f)
+
+    @classmethod
+    def _from_pretrained(
+        cls,
+        model_id: str,
+        revision: str = "main",
+        cache_dir: str = None,
+        force_download: bool = False,
+        proxies: Optional[Dict] = None,
+        resume_download: bool = False,
+        local_files_only: bool = False,
+        token: Union[str, bool, None] = None,
+        map_location: str = "cpu",
+        strict: bool = False,
+        **model_kwargs,
+    ):
+        config_path = hf_hub_download(
+            repo_id=model_id,
+            filename="config.json",
+            revision=revision,
+            cache_dir=cache_dir,
+            force_download=force_download,
+            proxies=proxies,
+            resume_download=resume_download,
+            token=token,
+            local_files_only=local_files_only,
+        )
+        with open(config_path, "r") as f:
+            config = json.load(f)
+
+        model = cls(
+            token_dim=config["token_dim"],
+            d_model=config["d_model"],
+            nhead=config["nhead"],
+            d_hid=config["d_hid"],
+            nlayers=config["nlayers"],
+            output_dim=config["output_dim"],
+            dropout=config["dropout"],
+        )
+        model_file = hf_hub_download(
+            repo_id=model_id,
+            filename="pytorch_model.bin",
+            revision=revision,
+            cache_dir=cache_dir,
+            force_download=force_download,
+            proxies=proxies,
+            resume_download=resume_download,
+            token=token,
+            local_files_only=local_files_only,
+        )
+        model.load_state_dict(torch.load(model_file, map_location=map_location), strict=strict)
