@@ -183,3 +183,4 @@ class TransformerModel(nn.Module, PyTorchModelHubMixin):
             local_files_only=local_files_only,
         )
         model.load_state_dict(torch.load(model_file, map_location=map_location), strict=strict)
+        return model
