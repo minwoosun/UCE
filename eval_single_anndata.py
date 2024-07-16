@@ -81,9 +81,9 @@ from huggingface_hub import hf_hub_download
 
 
 def download_files():
-    path_species_chrom = hf_hub_download(repo_id="minwoosun/uce-misc", filename="model_files/species_chrom.csv")
-    path_token = hf_hub_download(repo_id="minwoosun/uce-misc", filename="model_files/all_tokens.torch")
-    path_offset = hf_hub_download(repo_id="minwoosun/uce-misc", filename="model_files/species_offsets.pkl")
+    path_species_chrom = hf_hub_download(repo_id="minwoosun/uce-misc", filename="species_chrom.csv")
+    path_token = hf_hub_download(repo_id="minwoosun/uce-misc", filename="all_tokens.torch")
+    path_offset = hf_hub_download(repo_id="minwoosun/uce-misc", filename="species_offsets.pkl")
     
     # download all protein emb files into model_files/protein_embeddings/
     file_paths = ['Danio_rerio.GRCz11.gene_symbol_to_embedding_ESM2.pt',
@@ -98,8 +98,8 @@ def download_files():
     
     for path in file_paths:
         hf_hub_download(repo_id="minwoosun/uce-misc", 
-                        filename=f"model_files/protein_embeddings/{path}", 
-                        local_dir=".")
+                        filename=f"protein_embeddings/{path}", 
+                        local_dir="./model_files/")
 
     paths = {'path_species_chrom' : path_species_chrom,
              'path_token' : path_token,
